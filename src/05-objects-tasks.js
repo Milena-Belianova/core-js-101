@@ -20,8 +20,13 @@
  *    console.log(r.height);      // => 20
  *    console.log(r.getArea());   // => 200
  */
-function Rectangle(/* width, height */) {
-  throw new Error('Not implemented');
+function Rectangle(width, height) {
+  this.width = width;
+  this.height = height;
+
+  Rectangle.prototype.getArea = function getArea() {
+    return this.width * this.height;
+  };
 }
 
 
@@ -35,8 +40,8 @@ function Rectangle(/* width, height */) {
  *    [1,2,3]   =>  '[1,2,3]'
  *    { width: 10, height : 20 } => '{"height":10,"width":20}'
  */
-function getJSON(/* obj */) {
-  throw new Error('Not implemented');
+function getJSON(obj) {
+  return JSON.stringify(obj);
 }
 
 
@@ -51,8 +56,10 @@ function getJSON(/* obj */) {
  *    const r = fromJSON(Circle.prototype, '{"radius":10}');
  *
  */
-function fromJSON(/* proto, json */) {
-  throw new Error('Not implemented');
+function fromJSON(proto, json) {
+  const obj = JSON.parse(json);
+  const values = Object.values(obj);
+  return new proto.constructor(...values);
 }
 
 
@@ -110,35 +117,84 @@ function fromJSON(/* proto, json */) {
  *  For more examples see unit tests.
  */
 
-const cssSelectorBuilder = {
-  element(/* value */) {
-    throw new Error('Not implemented');
-  },
+class CssSelectorBuilder {
+  constructor(type, value, parentA, parentB) {
+    this.type = type;
+    this.value = value;
+    this.parentA = parentA;
+    this.parentB = parentB;
 
-  id(/* value */) {
-    throw new Error('Not implemented');
-  },
+    // Element, id and pseudo-element should not occur more then one time inside the selector
+    if (['element', 'id', 'pseudoElement']
+      .some((t) => t === type && this.parentsHas(type))) {
+      throw new Error('Element, id and pseudo-element should not occur more then one time inside the selector;');
+    }
 
-  class(/* value */) {
-    throw new Error('Not implemented');
-  },
+    // Selector parts should be arranged in the following order:
+    // element, id, class, attribute, pseudo-class, pseudo-element
+    const correctOrder = ['element', 'id', 'class', 'attr', 'pseudoClass', 'pseudoElement'];
+    const current = correctOrder.indexOf(type);
+    if (current !== -1) {
+      const forbiddenTypes = correctOrder.slice(current + 1);
+      if (forbiddenTypes.some((forbiddenType) => this.parentsHas(forbiddenType))) {
+        throw new Error('Selector parts should be arranged in the following order: element, id, class, attribute, pseudo-class, pseudo-element');
+      }
+    }
+  }
 
-  attr(/* value */) {
-    throw new Error('Not implemented');
-  },
+  parentsHas(type) {
+    return (this.parentA && this.parentA.has(type))
+      || (this.parentB && this.parentB.has(type));
+  }
 
-  pseudoClass(/* value */) {
-    throw new Error('Not implemented');
-  },
+  has(type) {
+    return this.type === type || this.parentsHas(type);
+  }
 
-  pseudoElement(/* value */) {
-    throw new Error('Not implemented');
-  },
+  element(value) {
+    return new CssSelectorBuilder('element', value, this);
+  }
 
-  combine(/* selector1, combinator, selector2 */) {
-    throw new Error('Not implemented');
-  },
-};
+  id(value) {
+    return new CssSelectorBuilder('id', value, this);
+  }
+
+  class(value) {
+    return new CssSelectorBuilder('class', value, this);
+  }
+
+  attr(value) {
+    return new CssSelectorBuilder('attr', value, this);
+  }
+
+  pseudoClass(value) {
+    return new CssSelectorBuilder('pseudoClass', value, this);
+  }
+
+  pseudoElement(value) {
+    return new CssSelectorBuilder('pseudoElement', value, this);
+  }
+
+  // eslint-disable-next-line class-methods-use-this
+  combine(selector1, combinator, selector2) {
+    return new CssSelectorBuilder('combine', combinator, selector1, selector2);
+  }
+
+  stringify() {
+    switch (this.type) {
+      case 'combine': return `${this.parentA.stringify()} ${this.value} ${this.parentB.stringify()}`;
+      case 'element': return `${this.parentA.stringify()}${this.value}`;
+      case 'id': return `${this.parentA.stringify()}#${this.value}`;
+      case 'class': return `${this.parentA.stringify()}.${this.value}`;
+      case 'attr': return `${this.parentA.stringify()}[${this.value}]`;
+      case 'pseudoClass': return `${this.parentA.stringify()}:${this.value}`;
+      case 'pseudoElement': return `${this.parentA.stringify()}::${this.value}`;
+      default: return '';
+    }
+  }
+}
+
+const cssSelectorBuilder = new CssSelectorBuilder();
 
 
 module.exports = {
